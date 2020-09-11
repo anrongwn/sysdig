@@ -254,7 +254,13 @@ bool flt_compare_string(cmpop op, char* operand1, char* operand2)
 		return (strstr(operand1, operand2) != NULL);
     case CO_ICONTAINS:
 #ifdef _WIN32
-		return (_strnicmp(operand1, operand2, strlen(operand1)) != NULL);
+	{
+		string s1(operand1);
+		string s2(operand2);
+		std::transform(s1.begin(), s1.end(), s1.begin(), [](unsigned char c){ return std::tolower(c); });
+		std::transform(s2.begin(), s2.end(), s2.begin(), [](unsigned char c){ return std::tolower(c); });
+		return (strstr(s1.c_str(), s2.c_str()) != NULL);
+	}
 #else
 		return (strcasestr(operand1, operand2) != NULL);
 #endif
@@ -1116,8 +1122,13 @@ char* sinsp_filter_check::rawval_to_string(uint8_t* rawval,
 					 "%.1lf", *(double*)rawval);
 			return m_getpropertystr_storage;
 		default:
-			ASSERT(false);
-			throw sinsp_exception("wrong event type " + to_string((long long) ptype));
+			//ASSERT(false);
+			//throw sinsp_exception("wrong event type " + to_string((long long) ptype));
+			snprintf(m_getpropertystr_storage,
+					 sizeof(m_getpropertystr_storage),
+					 "<NA>", *(double*)rawval);
+			return m_getpropertystr_storage;
+
 	}
 }
 
@@ -1913,7 +1924,7 @@ sinsp_filter* sinsp_filter_compiler::compile()
 	catch(const sinsp_exception& e)
 	{
 		delete m_filter;
-		throw;
+		throw sinsp_exception(string("filter error at position ") + to_string(m_scanpos) + ": " + e.what());
 	}
 	catch(...)
 	{
@@ -1943,7 +1954,12 @@ sinsp_filter* sinsp_filter_compiler::compile_()
 
 			if(m_state != ST_EXPRESSION_DONE)
 			{
-				throw sinsp_exception("filter error: unexpected end of filter at position " + to_string((long long) m_scanpos));
+				throw sinsp_exception("filter error: unexpected end of filter");
+			}
+
+			if(m_filter->m_filter->get_expr_boolop() == -1)
+			{
+				throw sinsp_exception("expression mixes 'and' and 'or' in an ambiguous way. Please use brackets.");
 			}
 
 			//
@@ -1976,7 +1992,7 @@ sinsp_filter* sinsp_filter_compiler::compile_()
 				}
 				else
 				{
-					throw sinsp_exception("syntax error in filter at position " + to_string((long long)m_scanpos));
+					throw sinsp_exception("syntax error in filter");
 				}
 
 				if(m_state != ST_EXPRESSION_DONE)
@@ -2003,7 +2019,7 @@ sinsp_filter* sinsp_filter_compiler::compile_()
 				}
 				else
 				{
-					throw sinsp_exception("syntax error in filter at position " + to_string((long long)m_scanpos));
+					throw sinsp_exception("syntax error in filter");
 				}
 
 				if(m_state != ST_EXPRESSION_DONE)
@@ -2027,7 +2043,7 @@ sinsp_filter* sinsp_filter_compiler::compile_()
 			}
 			else
 			{
-				throw sinsp_exception("syntax error in filter at position " + to_string((long long) m_scanpos));
+				throw sinsp_exception("syntax error in filter");
 			}
 
 			if(m_state != ST_EXPRESSION_DONE && m_state != ST_NEED_EXPRESSION)
@@ -2047,7 +2063,7 @@ sinsp_filter* sinsp_filter_compiler::compile_()
 			}
 			else
 			{
-				throw sinsp_exception("syntax error in filter at position " + to_string((long long) m_scanpos));
+				throw sinsp_exception("syntax error in filter");
 			}
 			break;
 		}

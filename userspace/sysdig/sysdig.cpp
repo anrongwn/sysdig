@@ -43,6 +43,133 @@ limitations under the License.
 #include <getopt.h>
 #endif
 
+
+#include "filter_optimizer.h"
+
+sinsp_filter_optimizer g_optimizer;
+
+void assert_flattened(sinsp *inspector, string in, string out)
+{
+	sinsp_filter* tflt;
+	sinsp_filter_compiler com1(inspector, in);
+	tflt = com1.compile();
+	g_optimizer.flatten_expr(tflt->m_filter);
+	string fres = g_optimizer.expr_to_string(tflt->m_filter);
+	if(fres != out)
+	{
+		int a = 0;
+	}
+}
+
+void init_flt_test(sinsp *inspector)
+{
+	sinsp_filter* tflt;
+	sinsp_filter_optimizer_entry fi;
+
+#if 1
+	char line[64 * 1024];
+
+	FILE* rf = fopen("rules.txt", "r");
+	if(rf == NULL)
+	{
+		printf("rules.txt not found");
+		exit(0);
+	}
+	
+	while(fgets(line, sizeof(line), rf) != NULL)
+	{
+		if(line[0] == '#')
+		{
+			if(line[1] == '#')
+			{
+				// printf("%s", line);
+				fi.m_rule = string(line).substr(1);
+			}
+			continue;
+		}
+
+		// printf("%s", line);
+		fi.m_filterstr = line;
+
+		sinsp_filter_compiler com(inspector, line);
+		try
+		{
+			tflt = com.compile();
+		}
+		catch(const sinsp_exception& e)
+		{
+			printf("\n\n%s", e.what());
+			exit(0);
+		}
+
+		fi.m_filter = tflt;
+		g_optimizer.add_filter(&fi);
+	}
+#else
+	assert_flattened(inspector, "(not(not(proc.pid=1 and not thread.tid=2))) and thread.tid=3", "(proc.pid = 1 and not thread.tid = 2 and thread.tid = 3)");
+	assert_flattened(inspector, "(not(not(not proc.pid=1 and not thread.tid=2))) and thread.tid=3", "(not proc.pid = 1 and not thread.tid = 2 and thread.tid = 3)");
+	assert_flattened(inspector, "(not proc.pid=1 and not thread.tid=2) and thread.tid=3", "(not proc.pid = 1 and not thread.tid = 2 and thread.tid = 3)");
+	assert_flattened(inspector, "not proc.pid=1 and not thread.tid=2 and thread.tid=3", "(not proc.pid = 1 and not thread.tid = 2 and thread.tid = 3)");
+	assert_flattened(inspector, "(((not proc.pid=1 and not thread.tid=2))) and thread.tid=3", "(not proc.pid = 1 and not thread.tid = 2 and thread.tid = 3)");
+	assert_flattened(inspector, "((not(not proc.pid=1 and not thread.tid=2))) and thread.tid=3", "(not (not proc.pid = 1 and not thread.tid = 2) and thread.tid = 3)");
+	assert_flattened(inspector, "not(not(not(proc.pid=1 and not thread.tid=2))) and thread.tid=3", "(not (proc.pid = 1 and not thread.tid = 2) and thread.tid = 3)");
+	assert_flattened(inspector, "not(not(not(not(proc.pid=1 and not thread.tid=2)))) and thread.tid=3", "(proc.pid = 1 and not thread.tid = 2 and thread.tid = 3)");
+	assert_flattened(inspector, "not(not(not(not(not(proc.pid=1 and not thread.tid=2))))) and thread.tid=3", "(not (proc.pid = 1 and not thread.tid = 2) and thread.tid = 3)");
+	assert_flattened(inspector, "(proc.pid=1 and not thread.tid=2 and (proc.pid=3 and not thread.tid=4 and (proc.pid=5 and not thread.tid=6))) and thread.tid=7", "(proc.pid = 1 and not thread.tid = 2 and proc.pid = 3 and not thread.tid = 4 and proc.pid = 5 and not thread.tid = 6 and thread.tid = 7)");
+	assert_flattened(inspector, "(not proc.pid=1 and not thread.tid=2 and (not proc.pid=3 and not thread.tid=4 and not (not proc.pid=5 and not thread.tid=6))) and thread.tid=7", "(not proc.pid = 1 and not thread.tid = 2 and not proc.pid = 3 and not thread.tid = 4 and not (not proc.pid = 5 and not thread.tid = 6) and thread.tid = 7)");
+	assert_flattened(inspector, "thread.tid=2 and not(not(proc.pid=3 and not thread.tid=4))", "(thread.tid = 2 and proc.pid = 3 and not thread.tid = 4)");
+	assert_flattened(inspector, "thread.tid=2 and not(not(not proc.pid=3 and not thread.tid=4))", "(thread.tid = 2 and not proc.pid = 3 and not thread.tid = 4)");
+	assert_flattened(inspector, "(proc.pid=1 and thread.tid=2) and (proc.pid=3 and not thread.tid=4)", "(proc.pid = 1 and thread.tid = 2 and proc.pid = 3 and not thread.tid = 4)");
+	assert_flattened(inspector, "(proc.pid=1 and thread.tid=2) and (proc.pid=3 and not thread.tid=4) and (proc.pid=5 and not thread.tid=6)", "(proc.pid = 1 and thread.tid = 2 and proc.pid = 3 and not thread.tid = 4 and proc.pid = 5 and not thread.tid = 6)");
+	assert_flattened(inspector, "not(not(not proc.pid=1 and not thread.tid=2)) and not(not(not proc.pid=3 and not thread.tid=4))", "(not proc.pid = 1 and not thread.tid = 2 and not proc.pid = 3 and not thread.tid = 4)");
+	assert_flattened(inspector, "((not(not(not proc.pid=1 and not thread.tid=2)) and not(not(not proc.pid=3 and not thread.tid=4))))", "(not proc.pid = 1 and not thread.tid = 2 and not proc.pid = 3 and not thread.tid = 4)");
+	assert_flattened(inspector, "not(not(not(not(not proc.pid=1 and not thread.tid=2)) and not(not(not proc.pid=3 and not thread.tid=4))))", "(not proc.pid = 1 and not thread.tid = 2 and not proc.pid = 3 and not thread.tid = 4)");
+
+	string fs = "not(not(not(not(not proc.pid=1 and not thread.tid=2)) and not(not(not proc.pid=3 and not thread.tid=4))))";
+
+	sinsp_filter_compiler com1(inspector, fs);
+	tflt = com1.compile();
+	fi.m_filterstr = "1";
+	fi.m_rule = "1";
+	fi.m_filter = tflt;
+	g_optimizer.add_filter(&fi);
+
+	fs = "((proc.pid=1 or thread.tid=2)) and thread.tid=3 and fd.num=3";
+	sinsp_filter_compiler com2(inspector, fs);
+	tflt = com2.compile();
+	fi.m_filterstr = "2";
+	fi.m_rule = "2";
+	fi.m_filter = tflt;
+	g_optimizer.add_filter(&fi);
+
+	//for(auto it : g_filters)
+	//{
+	//	printf("%s\n", it.m_rule.c_str());
+	//	printf("%s\n", it.m_filterstr.c_str());
+	//	it.m_filter->print();
+	//	int a = 0;
+	//}
+#endif
+
+	g_optimizer.dedup();
+}
+
+inline void run_flt_test(sinsp_evt *evt)
+{
+	for(auto& it : g_optimizer.m_filters)
+	{
+		bool res = it.m_filter->run(evt);
+		if(res == true)
+		{
+			printf("%u\n", (uint32_t)evt->get_num());
+			int a = 0;
+		}
+//		it.m_filter->print();
+		int a = 0;
+	}
+}
+
+
 static bool g_terminate = false;
 #ifdef HAS_CHISELS
 vector<sinsp_chisel*> g_chisels;
@@ -632,6 +759,9 @@ captureinfo do_inspect(sinsp* inspector,
 			throw sinsp_exception(inspector->getlasterr().c_str());
 		}
 
+run_flt_test(ev);
+continue;
+
 		if (duration_start == 0)
 		{
 			duration_start = ev->get_ts();
@@ -857,6 +987,8 @@ sysdig_init_res sysdig_init(int argc, char **argv)
 	{
 		inspector = new sinsp();
 		inspector->set_hostname_and_port_resolution_mode(false);
+
+		init_flt_test(inspector);
 
 #ifdef HAS_CHISELS
 		add_chisel_dirs(inspector);
@@ -1655,6 +1787,12 @@ sysdig_init_res sysdig_init(int argc, char **argv)
 		cerr << e.what() << endl;
 		handle_end_of_file(print_progress);
 		res.m_res = e.scap_rc();
+	}
+	catch(const sinsp_exception& e)
+	{
+		cerr << e.what() << endl;
+		handle_end_of_file(print_progress);
+		res.m_res = EXIT_FAILURE;
 	}
 	catch(...)
 	{

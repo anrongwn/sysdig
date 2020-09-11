@@ -174,6 +174,7 @@ private:
 	void set_inspector(sinsp* inspector);
 
 friend class sinsp_filter_check_list;
+friend class sinsp_filter_optimizer;
 };
 
 //
