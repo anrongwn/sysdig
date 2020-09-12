@@ -31,13 +31,15 @@ class SINSP_PUBLIC sinsp_filter_optimizer
 {
 public:
 	void add_filter(sinsp_filter_optimizer_entry* filter);
+	void optimize();
 	void dedup();
 
-	void flatten_expr(gen_event_filter_expression* fe);
+	void flatten_expr(gen_event_filter_expression* e);
+	string expr_to_string(gen_event_filter_expression* e);
 
 	vector<sinsp_filter_optimizer_entry> m_filters;
 
-//private:
+private:
 	uint32_t compare_check(sinsp_filter_check* chk1, sinsp_filter_check* chk2);
 	boolop get_check_boolop(gen_event_filter_expression* e, uint32_t pos);
 	bool compare_boolop(boolop op1, boolop op2);
@@ -48,16 +50,17 @@ public:
 
 	void flatten();
 
+	bool is_expr_disabled(gen_event_filter_expression* e);
+	void optimization_remove_disabled();
+
 	// The following are for debug purposes
 	string check_to_string(sinsp_filter_check* chk);
 	string child_to_string(gen_event_filter_check* child, bool is_expression);
-	string expr_to_string(gen_event_filter_expression* e1);
 	void print_expr(gen_event_filter_expression* e1);
-
-void pei(gen_event_filter_expression* e1, gen_event_filter_expression* e2, int depth);
 
 	map<pair<gen_event_filter_expression*, gen_event_filter_expression*>, uint32_t> m_compared_checks;
 	map<pair<gen_event_filter_expression*, gen_event_filter_expression*>, uint32_t> m_dups;
 	uint32_t m_ndups = 0;
 	uint32_t m_n_printed_expr;
+	bool is_flattened = false;
 };

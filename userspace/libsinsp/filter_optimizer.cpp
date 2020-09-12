@@ -232,42 +232,32 @@ uint32_t sinsp_filter_optimizer::compare_expr(gen_event_filter_expression* e1, g
 
 	for(uint32_t j = 0; j < size1; j++)
 	{
-printf("%u A %u\n", depth,j);
 		gen_event_filter_check* chk1 = e1->m_checks[j];
 		ASSERT(chk1 != NULL);
 		gen_event_filter_expression* fe1 = dynamic_cast<gen_event_filter_expression*>(chk1);
 		bool is_chk1_expression = (fe1 != NULL);
-		cmpop chk1_cmpop = (is_chk1_expression && fe1->m_checks.size() > 1)? chk1->m_cmpop: CO_NONE;
+		cmpop chk1_cmpop = (is_chk1_expression)? CO_NONE : chk1->m_cmpop;
 		boolop chk1_boolop = get_check_boolop(e1, j);
 
 		for(uint32_t k = 0; k < size2; k++)
 		{
-printf("%u B %u\n", depth,k);
 			gen_event_filter_check* chk2 = e2->m_checks[k];
 			ASSERT(chk2 != NULL);
 			gen_event_filter_expression* fe2 = dynamic_cast<gen_event_filter_expression*>(chk2);
 			bool is_chk2_expression = (fe2 != NULL);
-			cmpop chk2_cmpop = (is_chk2_expression && fe2->m_checks.size() > 1)? chk2->m_cmpop: CO_NONE;
+			cmpop chk2_cmpop = (is_chk2_expression)? CO_NONE : chk2->m_cmpop;
 			boolop chk2_boolop = get_check_boolop(e2, k);
 
-printf("%u Z %d %d\n", depth, (int)chk1_cmpop, (int)chk2_cmpop);
-if((uint32_t)chk1_cmpop > 15 || (uint32_t)chk1_cmpop > 15)
-{
-	int a = 0;
-}
 			if(is_chk1_expression == is_chk2_expression &&
 				chk1_cmpop == chk2_cmpop &&
 				compare_boolop(chk1_boolop, chk2_boolop))
 			{
-printf("%u C\n", depth);
 				if(is_chk1_expression)
 				{
-printf("%u D\n", depth);
 					gen_event_filter_expression* ce1 = (gen_event_filter_expression*)chk1;
 					gen_event_filter_expression* ce2 = (gen_event_filter_expression*)chk2;
 					if(ce1->m_checks.size() == ce2->m_checks.size())
 					{
-printf("%u E\n", depth);
 						uint32_t cres = compare_expr(ce1, ce2, depth + 1);
 						if(cres == ce1->m_checks.size())
 						{
@@ -294,65 +284,22 @@ printf("%u E\n", depth);
 
 void sinsp_filter_optimizer::add_dupplicate(uint32_t res, gen_event_filter_expression* e1, gen_event_filter_expression* e2)
 {
-	if(res > 0)
+	if(res > 3)
 	{
 		pair<gen_event_filter_expression*, gen_event_filter_expression*> mi(min(e1, e2), max(e1, e2));
-		//if(m_dups.find(mi) != m_dups.end())
-		//{
-		//	//
-		//	// We already found this match
-		//	// XXX we should update this if the new res is longer
-		//	//
-		//	ASSERT(m_dups[mi] == res);
-		//	return;
-		//}
-
-printf("\n\n %p %p-----------------------------------------------IIIIIIIIIII\n", e1, e2);
-print_expr(e1);
-printf("\n\n");
-print_expr(e2);
-printf("\n\n %p %p----------------------------------------------------------\n", e1, e2);
+		if(m_dups.find(mi) != m_dups.end())
+		{
+			//
+			// We already found this match
+			// XXX we should update this if the new res is longer
+			//
+			ASSERT(m_dups[mi] == res);
+			return;
+		}
 
 		m_dups[mi] = res;
 		m_ndups++;
-
-		//printf("SRC RULE: %s", m_filters[j].m_rule.c_str());
-		//printf("DST RULE: %s\n", m_filters[k].m_rule.c_str());
-		//printf("MATCHES: %u / %u\n", res, (uint32_t)fe1->m_checks.size());
-		//print_expr(fe1);
-		//printf("\n\n");
-		//print_expr(fe2);
-		//printf("\n\n");
 	}
-}
-
-void sinsp_filter_optimizer::pei(gen_event_filter_expression* e1, gen_event_filter_expression* e2, int depth)
-{
-	bool is_chk1_expression = (dynamic_cast<gen_event_filter_expression*>(e1) != NULL);
-	bool is_chk2_expression = (dynamic_cast<gen_event_filter_expression*>(e2) != NULL);
-
-	printf("--------------------------------------------------\n");
-	printf("%d ", depth);
-	if(is_chk1_expression)
-	{
-		print_expr(e1);
-	}
-	else
-	{
-		printf("NE");
-	}
-	printf("\n");
-	printf("-------\n");
-	printf("%d ", depth);
-	if(is_chk2_expression)
-	{
-		print_expr(e2);
-	}
-	else
-	{
-		printf("NE");
-	}
-	printf("\n");
 }
 
 bool sinsp_filter_optimizer::already_compared(gen_event_filter_expression* e1, gen_event_filter_expression* e2)
@@ -377,9 +324,9 @@ void sinsp_filter_optimizer::find_duplicates(gen_event_filter_expression* e1, ge
 	}
 
 	uint32_t res = compare_expr(e1, e2, 0);
-printf("*%d\n", res);
+
 	add_dupplicate(res, e1, e2);
-return;
+
 	uint32_t size1 = (uint32_t)e1->m_checks.size();
 	uint32_t size2 = (uint32_t)e2->m_checks.size();
 
@@ -545,6 +492,11 @@ void sinsp_filter_optimizer::flatten_expr(gen_event_filter_expression* e)
 
 void sinsp_filter_optimizer::flatten()
 {
+	if(is_flattened)
+	{
+		return;
+	}
+
 	for(uint32_t j = 0; j < m_filters.size(); j++)
 	{
 		gen_event_filter_expression* fe = (gen_event_filter_expression*)m_filters[j].m_filter->m_filter;
@@ -552,39 +504,22 @@ void sinsp_filter_optimizer::flatten()
 		// top tier checks come with boolop not set.
 		// Set it to NONE.
 		fe->m_boolop = BO_NONE;
-//print_expr(fe);
-//printf("\n");
-//printf("----\n");
 		flatten_expr((gen_event_filter_expression*)fe);
-//print_expr(fe);
-//printf("\n");
-//printf("-----------------------------------------------------------------\n");
 	}
 
-	int a = 0;
+	is_flattened = true;
 }
 
 void sinsp_filter_optimizer::dedup()
 {
-//	flatten();
+	flatten();
 
 	for(uint32_t j = 0; j < m_filters.size(); j++)
 	{
 		for(uint32_t k = 0; k < m_filters.size() - 1; k++)
 		{
-if(j<2 || j>2)
-{
-	continue;
-}
-if(k != 1)
-{
-	continue;
-}
 			gen_event_filter_expression* fe1 = m_filters[j].m_filter->m_filter;
 			gen_event_filter_expression* fe2 = m_filters[k].m_filter->m_filter;
-//print_expr(fe1);
-//printf("\n\n");
-//print_expr(fe2);
 			if(j > k)
 			{
 				find_duplicates(fe1, fe2, 0);
@@ -592,9 +527,86 @@ if(k != 1)
 		}
 	}
 
+	for(auto it : m_dups)
+	{
+		printf("%d ------------------------------------------------------------------------ %p %p\n", 
+			(int)it.second,
+			it.first.first,
+			it.first.second);
+		print_expr(it.first.first);
+		printf("\n\n");
+		print_expr(it.first.second);
+		printf("\n");
+	}
 	fprintf(stderr, "TOT MATCHES: %u %u\n", m_ndups, (uint32_t)m_dups.size());
-	int a = 0;
 exit(0);
+}
+
+//
+//
+//
+bool sinsp_filter_optimizer::is_expr_disabled(gen_event_filter_expression* e)
+{
+	int32_t bo = e->get_expr_boolop();
+	ASSERT(bo != -1);
+
+	if(bo == BO_AND)
+	{
+		uint32_t size = (uint32_t)e->m_checks.size();
+
+		for(uint32_t j = 0; j < size; j++)
+		{
+			gen_event_filter_check* chk = e->m_checks[j];
+			ASSERT(chk != NULL);
+			sinsp_filter_check* rc = dynamic_cast<sinsp_filter_check*>(chk);
+			bool is_fld_chk = (rc != NULL);
+
+			if(is_fld_chk)
+			{
+				if(string(rc->m_field->m_name) == "evt.num")
+				{
+					if(rc->m_cmpop == CO_EQ)
+					{
+						if(!op_is_not(rc->m_boolop))
+						{
+							if(rc->m_val_storages_members.size() == 1)
+							{
+								uint64_t val = *(uint64_t*)rc->m_val_storages_members.begin()->first;
+								if(val == 0)
+								{
+									return true;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
+void sinsp_filter_optimizer::optimization_remove_disabled()
+{
+	for(uint32_t j = 0; j < m_filters.size(); j++)
+	{
+		gen_event_filter_expression* e = m_filters[j].m_filter->m_filter;
+		if(is_expr_disabled(e))
+		{
+			g_logger.format(sinsp_logger::SEV_ERROR,
+				"removing disabled rule: %s\n", m_filters[j].m_rule.c_str());
+
+				m_filters.erase(m_filters.begin() + j);
+				j--;
+		}
+	}
+}
+
+void sinsp_filter_optimizer::optimize()
+{
+	flatten();
+	optimization_remove_disabled();
 }
 
 string sinsp_filter_optimizer::check_to_string(sinsp_filter_check* chk)
@@ -602,16 +614,12 @@ string sinsp_filter_optimizer::check_to_string(sinsp_filter_check* chk)
 	string ts = chk->m_field->m_name;
 	uint32_t id = chk->m_field_id;
 	string ename = chk->m_info.m_name;
-//	uint64_t val = *(uint64_t*)&(m_val_storages[0][0]);
-//bool flt_compare(cmpop op, ppm_param_type type, void* operand1, void* operand2, uint32_t op1_len, uint32_t op2_len)
-	//m_val_storage_len
 
 	string vs;
 	for(auto it : chk->m_val_storages_members)
 	{
 		vs += chk->rawval_to_string(it.first, chk->m_field->m_type, chk->m_field->m_print_format, it.second);
 		vs += ",";
-		// vs += (to_string(it.second) + ":");
 	}
 	vs = vs.substr(0, vs.length() - 1);
 

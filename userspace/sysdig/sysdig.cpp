@@ -106,6 +106,7 @@ void init_flt_test(sinsp *inspector)
 		g_optimizer.add_filter(&fi);
 	}
 #else
+#if 0
 	assert_flattened(inspector, "(not(not(proc.pid=1 and not thread.tid=2))) and thread.tid=3", "(proc.pid = 1 and not thread.tid = 2 and thread.tid = 3)");
 	assert_flattened(inspector, "(not(not(not proc.pid=1 and not thread.tid=2))) and thread.tid=3", "(not proc.pid = 1 and not thread.tid = 2 and thread.tid = 3)");
 	assert_flattened(inspector, "(not proc.pid=1 and not thread.tid=2) and thread.tid=3", "(not proc.pid = 1 and not thread.tid = 2 and thread.tid = 3)");
@@ -124,8 +125,8 @@ void init_flt_test(sinsp *inspector)
 	assert_flattened(inspector, "not(not(not proc.pid=1 and not thread.tid=2)) and not(not(not proc.pid=3 and not thread.tid=4))", "(not proc.pid = 1 and not thread.tid = 2 and not proc.pid = 3 and not thread.tid = 4)");
 	assert_flattened(inspector, "((not(not(not proc.pid=1 and not thread.tid=2)) and not(not(not proc.pid=3 and not thread.tid=4))))", "(not proc.pid = 1 and not thread.tid = 2 and not proc.pid = 3 and not thread.tid = 4)");
 	assert_flattened(inspector, "not(not(not(not(not proc.pid=1 and not thread.tid=2)) and not(not(not proc.pid=3 and not thread.tid=4))))", "(not proc.pid = 1 and not thread.tid = 2 and not proc.pid = 3 and not thread.tid = 4)");
-
-	string fs = "not(not(not(not(not proc.pid=1 and not thread.tid=2)) and not(not(not proc.pid=3 and not thread.tid=4))))";
+#endif
+	string fs = "((((evt.num=0)))) and ((((evt.type = connect and evt.dir=<) or   (evt.type in (sendto,sendmsg) and evt.dir=< and    fd.l4proto != tcp and fd.connected=false and fd.name_changed=true)) and  (fd.typechar = 4 or fd.typechar = 6) and  (fd.ip != \"0.0.0.0\" and fd.net != \"127.0.0.0/8\" and not fd.snet in (\"10.0.0.0/8\",\"172.16.0.0/12\",\"192.168.0.0/16\")) and  (evt.rawres >= 0 or evt.res = EINPROGRESS)) ) and not ((fd.sip in (\"127.0.0.1\",\"8.8.8.8\")) or  (fd.snet in (\"127.0.0.1/8\")) or  (fd.sip.name in (google.com,www.yahoo.com)))";
 
 	sinsp_filter_compiler com1(inspector, fs);
 	tflt = com1.compile();
@@ -140,7 +141,7 @@ void init_flt_test(sinsp *inspector)
 	fi.m_filterstr = "2";
 	fi.m_rule = "2";
 	fi.m_filter = tflt;
-	g_optimizer.add_filter(&fi);
+//	g_optimizer.add_filter(&fi);
 
 	//for(auto it : g_filters)
 	//{
@@ -151,7 +152,8 @@ void init_flt_test(sinsp *inspector)
 	//}
 #endif
 
-	g_optimizer.dedup();
+//	g_optimizer.dedup();
+	g_optimizer.optimize();
 }
 
 inline void run_flt_test(sinsp_evt *evt)
