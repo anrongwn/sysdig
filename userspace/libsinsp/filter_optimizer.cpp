@@ -584,6 +584,55 @@ bool sinsp_filter_optimizer::is_expr_disabled(gen_event_filter_expression* e)
 	return false;
 }
 
+bool sinsp_filter_optimizer::is_expr_always_false(gen_event_filter_expression* e)
+{
+	int32_t bo = e->get_expr_boolop();
+	ASSERT(bo != -1);
+
+	if(bo == BO_AND)
+	{
+		uint32_t size = (uint32_t)e->m_checks.size();
+
+		for(uint32_t j = 0; j < size; j++)
+		{
+			gen_event_filter_check* chk1 = e->m_checks[j];
+			ASSERT(chk1 != NULL);
+			sinsp_filter_check* rc1 = dynamic_cast<sinsp_filter_check*>(chk1);
+			bool is_fld1_chk = (rc1 != NULL);
+
+			if(is_fld1_chk)
+			{
+				for(uint32_t k = 0; k < size; k++)
+				{
+					if(j == k)
+					{
+						continue;
+					}
+
+					gen_event_filter_check* chk2 = e->m_checks[k];
+					ASSERT(chk2 != NULL);
+					sinsp_filter_check* rc2 = dynamic_cast<sinsp_filter_check*>(chk2);
+					bool is_fld2_chk = (rc2 != NULL);
+
+					if(is_fld2_chk)
+					{
+						if(compare_check(rc1, rc2) != 0)
+						{
+							if(((op_is_not(rc1->m_boolop) != op_is_not(rc2->m_boolop)) && (rc1->m_cmpop == rc2->m_cmpop)) ||
+								((op_is_not(rc1->m_boolop) == op_is_not(rc2->m_boolop)) && (rc1->m_cmpop != rc2->m_cmpop)))
+							{
+								return true;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
 //
 // Remove from the list the filters that are disabled.
 // In the falco rule set, rules are typically disabled by including a 'never_true' macro, 
@@ -606,10 +655,35 @@ void sinsp_filter_optimizer::optimization_remove_disabled()
 	}
 }
 
+//
+// This naive optimization looks for filters that have opposite top level filter checks and
+// removes them from the list. 
+// For example:
+// "fd.port=10 and proc.name=foo and fd.port!=10"
+// A filter like this will always fail and can be safely skipped.
+//
+void sinsp_filter_optimizer::optimization_remove_always_false()
+{
+	for(uint32_t j = 0; j < m_filters.size(); j++)
+	{
+		gen_event_filter_expression* e = m_filters[j].m_filter->m_filter;
+		if(is_expr_always_false(e))
+		{
+			g_logger.format(sinsp_logger::SEV_ERROR,
+				"removing always false rule: %s\n", m_filters[j].m_rule.c_str());
+
+				m_filters.erase(m_filters.begin() + j);
+				j--;
+		}
+	}
+}
+
 void sinsp_filter_optimizer::optimize()
 {
 	flatten();
 	optimization_remove_disabled();
+	optimization_remove_always_false();
+	return;
 }
 
 string sinsp_filter_optimizer::check_to_string(sinsp_filter_check* chk)

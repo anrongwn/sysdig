@@ -51,7 +51,9 @@ private:
 	void flatten();
 
 	bool is_expr_disabled(gen_event_filter_expression* e);
+	bool is_expr_always_false(gen_event_filter_expression* e);
 	void optimization_remove_disabled();
+	void optimization_remove_always_false();
 
 	// The following are for debug purposes
 	string check_to_string(sinsp_filter_check* chk);
