@@ -542,9 +542,6 @@ void sinsp_filter_optimizer::dedup()
 exit(0);
 }
 
-//
-//
-//
 bool sinsp_filter_optimizer::is_expr_disabled(gen_event_filter_expression* e)
 {
 	int32_t bo = e->get_expr_boolop();
@@ -587,6 +584,12 @@ bool sinsp_filter_optimizer::is_expr_disabled(gen_event_filter_expression* e)
 	return false;
 }
 
+//
+// Remove from the list the filters that are disabled.
+// In the falco rule set, rules are typically disabled by including a 'never_true' macro, 
+// which is expanded to `(evt.num=0)`, which is easy to detect. Disabled rules are
+// completely removed from the list since they never need to be evaluated.
+//
 void sinsp_filter_optimizer::optimization_remove_disabled()
 {
 	for(uint32_t j = 0; j < m_filters.size(); j++)
