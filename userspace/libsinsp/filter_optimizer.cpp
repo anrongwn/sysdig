@@ -398,7 +398,7 @@ inline boolop op_flip_not(boolop op)
 	return (boolop)(op ^ 1);
 }
 
-void sinsp_filter_optimizer::flatten_expr(gen_event_filter_expression* e)
+void sinsp_filter_optimizer::normalize_expr(gen_event_filter_expression* e)
 {
 	uint32_t size = (uint32_t)e->m_checks.size();
 	int32_t gpbo = e->get_expr_boolop();
@@ -413,14 +413,14 @@ void sinsp_filter_optimizer::flatten_expr(gen_event_filter_expression* e)
 		bool is_chk1_expression = (ce != NULL);
 
 		//
-		// We only flatten expressions
+		// We only normalize expressions
 		//
 		if(is_chk1_expression)
 		{
 			//
 			// Flatten the child first
 			//
-			flatten_expr(ce);
+			normalize_expr(ce);
 
 			int32_t pbo = ce->get_expr_boolop();
 			ASSERT(pbo != -1);
@@ -483,14 +483,14 @@ void sinsp_filter_optimizer::flatten_expr(gen_event_filter_expression* e)
 				// We changed the input expression. Re-run the flattening from the beginning and then
 				// exit right away to avoid processing modified childs.
 				//
-				flatten_expr(e);
+				normalize_expr(e);
 				break;
 			}
 		}
 	}
 }
 
-void sinsp_filter_optimizer::flatten()
+void sinsp_filter_optimizer::normalize()
 {
 	if(is_flattened)
 	{
@@ -504,7 +504,7 @@ void sinsp_filter_optimizer::flatten()
 		// top tier checks come with boolop not set.
 		// Set it to NONE.
 		fe->m_boolop = BO_NONE;
-		flatten_expr((gen_event_filter_expression*)fe);
+		normalize_expr((gen_event_filter_expression*)fe);
 	}
 
 	is_flattened = true;
@@ -512,8 +512,6 @@ void sinsp_filter_optimizer::flatten()
 
 void sinsp_filter_optimizer::dedup()
 {
-	flatten();
-
 	for(uint32_t j = 0; j < m_filters.size(); j++)
 	{
 		for(uint32_t k = 0; k < m_filters.size() - 1; k++)
@@ -539,7 +537,258 @@ void sinsp_filter_optimizer::dedup()
 		printf("\n");
 	}
 	fprintf(stderr, "TOT MATCHES: %u %u\n", m_ndups, (uint32_t)m_dups.size());
-exit(0);
+}
+
+void sinsp_filter_optimizer::collapse_matches_check(sinsp_filter_check* chk)
+{
+	string ts = chk->m_field->m_name;
+
+	auto& fvals = m_collapsed_fields[ts];
+
+	cmpop op = ((gen_event_filter_check*)chk)->m_cmpop;
+	vector<string>* fvec;
+	uint32_t* mstats;
+
+	switch(op)
+	{
+	case CO_EQ:
+		fvec = &fvals.m_equal;
+		mstats = &(m_match_stats.m_equal);
+		break;
+	case CO_CONTAINS:
+		fvec = &fvals.m_contains;
+		mstats = &(m_match_stats.m_contains);
+		break;
+	case CO_ICONTAINS:
+		fvec = &fvals.m_icontains;
+		mstats = &(m_match_stats.m_icontains);
+		break;
+	case CO_STARTSWITH:
+		fvec = &fvals.m_startswith;
+		mstats = &(m_match_stats.m_startswith);
+		break;
+	case CO_ENDSWITH:
+		fvec = &fvals.m_endswith;
+		mstats = &(m_match_stats.m_endswith);
+		break;
+	case CO_IN:
+		fvec = &fvals.m_in;
+		mstats = &(m_match_stats.m_in);
+		break;
+	case CO_PMATCH:
+		fvec = &fvals.m_pmatch;
+		mstats = &(m_match_stats.m_pmatch);
+		break;
+	default:
+		fvec = &fvals.m_other;
+		mstats = &(m_match_stats.m_other);
+		break;
+	}
+
+	string vs;
+	for(auto it : chk->m_val_storages_members)
+	{
+		vs = chk->rawval_to_string(it.first, chk->m_field->m_type, chk->m_field->m_print_format, it.second);
+		//fvals.push_back(it.first);
+		fvec->push_back(vs);
+		(*mstats)++;
+printf("%s,%s,%s\n", ts.c_str(), vs.c_str(), cmpop_to_string(op));
+	}
+}
+
+void sinsp_filter_optimizer::collapse_matches_expr(gen_event_filter_expression* e)
+{
+	uint32_t j;
+	uint32_t size = (uint32_t)e->m_checks.size();
+	gen_event_filter_check* chk = NULL;
+	m_n_printed_expr++;
+	string res;
+
+	for(j = 0; j < size; j++)
+	{
+		chk = e->m_checks[j];
+		gen_event_filter_expression* fe = dynamic_cast<gen_event_filter_expression*>(chk);
+		bool is_expression = (fe != NULL);
+
+		if(is_expression)
+		{
+			collapse_matches_expr(fe);
+		}
+		else
+		{
+			collapse_matches_check((sinsp_filter_check*)chk);
+		}
+	}
+}
+
+void sinsp_filter_optimizer::optimization_collapse_matches()
+{
+	for(uint32_t j = 0; j < m_filters.size(); j++)
+	{
+		collapse_matches_expr(m_filters[j].m_filter->m_filter);
+	}
+}
+
+bool sinsp_filter_optimizer::can_move_check_into_in(sinsp_filter_check* fc)
+{
+	if(fc->m_field->m_type == PT_CHARBUF)
+	{
+		if(fc->m_cmpop == CO_EQ || fc->m_cmpop == CO_IN)
+		{
+			string n = fc->m_field->m_name;
+			if(n != "proc.aname" &&
+				n != "evt.arg" &&
+				n != "evt.rawarg" &&
+				n != "proc.apid")
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+void sinsp_filter_optimizer::get_in_able_fields(gen_event_filter_expression* e, OUT map<string, uint32_t>* in_able_fields)
+{
+	uint32_t size = (uint32_t)e->m_checks.size();
+	string afname;
+	bool afname_initialized = false;
+
+	map<string, uint32_t> all_fields;
+
+	//
+	// Create a dictionary with all of the unique checks
+	//
+	for(uint32_t j = 0; j < size; j++)
+	{
+		sinsp_filter_check* fc = dynamic_cast<sinsp_filter_check*>(e->m_checks[j]);
+		bool is_check = (fc != NULL);
+
+		if(is_check)
+		{
+			uint32_t& cnt = all_fields[fc->m_field->m_name];
+			cnt++;
+		}
+	}
+
+	//
+	// Go through each unique field and determine if it's in-able
+	//
+	for(auto& it : all_fields)
+	{
+		if(it.second > 1)
+		{
+			uint32_t ninable = 0;
+
+			for(uint32_t j = 0; j < size; j++)
+			{
+				sinsp_filter_check* fc = dynamic_cast<sinsp_filter_check*>(e->m_checks[j]);
+				bool is_check = (fc != NULL);
+
+				if(is_check)
+				{
+					if(fc->m_field->m_name == it.first)
+					{
+						if(can_move_check_into_in(fc))
+						{
+							ninable++;
+						}
+					}
+				}
+			}
+
+			if(ninable > 1)
+			{
+				uint32_t& cnt = (*in_able_fields)[it.first];
+				cnt = it.second;
+			}
+		}
+	}
+}
+
+
+void sinsp_filter_optimizer::merge_into_in_expr(gen_event_filter_expression* e)
+{
+	uint32_t size = (uint32_t)e->m_checks.size();
+
+	//
+	// First try to merge the childs
+	//
+	for(uint32_t j = 0; j < size; j++)
+	{
+		gen_event_filter_check* chk = e->m_checks[j];
+		gen_event_filter_expression* fe = dynamic_cast<gen_event_filter_expression*>(chk);
+		bool is_expression = (fe != NULL);
+
+		if(is_expression)
+		{
+			merge_into_in_expr(fe);
+		}
+	}
+
+	//
+	// See if we can merge the current expression
+	//
+	if(e->get_expr_boolop() == BO_OR && size > 1)
+	{
+		map<string, uint32_t> in_able_fields;
+		get_in_able_fields(e, &in_able_fields);
+
+		for(auto it : in_able_fields)
+		{
+			sinsp_filter_check* first = NULL;
+			int valpos = 0;
+
+			for(uint32_t j = 0; j < (uint32_t)e->m_checks.size(); j++)
+			{
+				sinsp_filter_check* fc = dynamic_cast<sinsp_filter_check*>(e->m_checks[j]);
+				bool is_check = (fc != NULL);
+
+				if(is_check)
+				{
+					if(fc->m_field->m_name == it.first)
+					{
+						if(can_move_check_into_in(fc))
+						{
+							if(first == NULL)
+							{
+								first = fc;
+								if(fc->m_cmpop == CO_EQ)
+								{
+									fc->m_cmpop = CO_IN;
+								}
+
+								valpos += fc->m_val_storages_members.size();
+							}
+							else
+							{
+								for(auto& vit : fc->m_val_storages_members)
+								{
+									string vs = fc->rawval_to_string(vit.first, fc->m_field->m_type, 
+										fc->m_field->m_print_format, vit.second);
+									first->add_filter_value((const char*)vs.c_str(), vs.size(), valpos++);
+								}
+
+								e->m_checks.erase(e->m_checks.begin() + j);
+								j--;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+void sinsp_filter_optimizer::optimization_merge_into_in()
+{
+	for(uint32_t j = 0; j < m_filters.size(); j++)
+	{
+		merge_into_in_expr(m_filters[j].m_filter->m_filter);
+//print_expr(m_filters[j].m_filter->m_filter);
+//int a = 0;
+	}
 }
 
 bool sinsp_filter_optimizer::is_expr_disabled(gen_event_filter_expression* e)
@@ -680,9 +929,24 @@ void sinsp_filter_optimizer::optimization_remove_always_false()
 
 void sinsp_filter_optimizer::optimize()
 {
-	flatten();
+	normalize();
+	optimization_merge_into_in();
+	normalize();
+
 	optimization_remove_disabled();
 	optimization_remove_always_false();
+
+//	optimization_collapse_matches();
+
+//	dedup();
+
+	for(uint32_t j = 0; j < m_filters.size(); j++)
+	{
+		gen_event_filter_expression* e = m_filters[j].m_filter->m_filter;
+		print_expr(e);
+		printf("\n\n");
+	}
+
 	return;
 }
 
@@ -778,6 +1042,15 @@ string sinsp_filter_optimizer::expr_to_string(gen_event_filter_expression* e1)
 	res += ")";
 
 	return res;
+}
+
+void sinsp_filter_optimizer::print_filters()
+{
+	for(uint32_t j = 0; j < m_filters.size(); j++)
+	{
+		print_expr(m_filters[j].m_filter->m_filter);
+		printf("\n\n");
+	}
 }
 
 void sinsp_filter_optimizer::print_expr(gen_event_filter_expression* e1)

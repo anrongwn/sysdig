@@ -53,7 +53,7 @@ void assert_flattened(sinsp *inspector, string in, string out)
 	sinsp_filter* tflt;
 	sinsp_filter_compiler com1(inspector, in);
 	tflt = com1.compile();
-	g_optimizer.flatten_expr(tflt->m_filter);
+	g_optimizer.normalize_expr(tflt->m_filter);
 	string fres = g_optimizer.expr_to_string(tflt->m_filter);
 	if(fres != out)
 	{
@@ -66,7 +66,7 @@ void init_flt_test(sinsp *inspector)
 	sinsp_filter* tflt;
 	sinsp_filter_optimizer_entry fi;
 
-#if 1
+#if 0
 	char line[64 * 1024];
 
 	FILE* rf = fopen("rules.txt", "r");
@@ -126,7 +126,7 @@ void init_flt_test(sinsp *inspector)
 	assert_flattened(inspector, "((not(not(not proc.pid=1 and not thread.tid=2)) and not(not(not proc.pid=3 and not thread.tid=4))))", "(not proc.pid = 1 and not thread.tid = 2 and not proc.pid = 3 and not thread.tid = 4)");
 	assert_flattened(inspector, "not(not(not(not(not proc.pid=1 and not thread.tid=2)) and not(not(not proc.pid=3 and not thread.tid=4))))", "(not proc.pid = 1 and not thread.tid = 2 and not proc.pid = 3 and not thread.tid = 4)");
 #endif
-	string fs = "((((evt.num=0)))) and ((((evt.type = connect and evt.dir=<) or   (evt.type in (sendto,sendmsg) and evt.dir=< and    fd.l4proto != tcp and fd.connected=false and fd.name_changed=true)) and  (fd.typechar = 4 or fd.typechar = 6) and  (fd.ip != \"0.0.0.0\" and fd.net != \"127.0.0.0/8\" and not fd.snet in (\"10.0.0.0/8\",\"172.16.0.0/12\",\"192.168.0.0/16\")) and  (evt.rawres >= 0 or evt.res = EINPROGRESS)) ) and not ((fd.sip in (\"127.0.0.1\",\"8.8.8.8\")) or  (fd.snet in (\"127.0.0.1/8\")) or  (fd.sip.name in (google.com,www.yahoo.com)))";
+	string fs = "((((evt.type in (rename,renameat,renameat2)) or (evt.type in (rmdir,unlink,unlinkat))) and evt.arg.newpath contains \"/.\") or  ((evt.type in (mkdir,mkdirat)) and evt.arg.path contains \"/.\") or  (((evt.type=open or evt.type=openat) and evt.is_open_write=true and fd.typechar='f' and fd.num>=0) and evt.arg.flags contains \"O_CREAT\" and fd.name contains \"/.\" and not fd.name pmatch (/root/.cassandra))) and ((((evt.num=0)))) and not ((((evt.num=0))))";
 
 	sinsp_filter_compiler com1(inspector, fs);
 	tflt = com1.compile();

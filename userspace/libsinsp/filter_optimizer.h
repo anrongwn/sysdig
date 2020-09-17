@@ -27,6 +27,32 @@ public:
 	string m_filterstr; // optional
 };
 
+class field_ops
+{
+public:
+	vector<string> m_equal;
+	vector<string> m_contains;
+	vector<string> m_icontains;
+	vector<string> m_startswith;
+	vector<string> m_endswith;
+	vector<string> m_in;
+	vector<string> m_pmatch;
+	vector<string> m_other;
+};
+
+class match_stats
+{
+public:
+	uint32_t m_equal = 0;
+	uint32_t m_contains = 0;
+	uint32_t m_icontains = 0;
+	uint32_t m_startswith = 0;
+	uint32_t m_endswith = 0;
+	uint32_t m_in = 0;
+	uint32_t m_pmatch = 0;
+	uint32_t m_other = 0;
+};
+
 class SINSP_PUBLIC sinsp_filter_optimizer
 {
 public:
@@ -34,7 +60,7 @@ public:
 	void optimize();
 	void dedup();
 
-	void flatten_expr(gen_event_filter_expression* e);
+	void normalize_expr(gen_event_filter_expression* e);
 	string expr_to_string(gen_event_filter_expression* e);
 
 	vector<sinsp_filter_optimizer_entry> m_filters;
@@ -48,7 +74,17 @@ private:
 	bool already_compared(gen_event_filter_expression* e1, gen_event_filter_expression* e2);
 	void find_duplicates(gen_event_filter_expression* e1, gen_event_filter_expression* e2, int depth);
 
-	void flatten();
+	void normalize();
+
+	void collapse_matches_check(sinsp_filter_check* chk);
+	void collapse_matches_expr(gen_event_filter_expression* e);
+	void optimization_collapse_matches();
+
+	bool can_move_check_into_in(sinsp_filter_check* fc);
+	void get_in_able_fields(gen_event_filter_expression* e, OUT map<string, uint32_t>* in_able_fields);
+	void merge_into_in_expr(gen_event_filter_expression* e);
+	void optimization_merge_into_in();
+
 
 	bool is_expr_disabled(gen_event_filter_expression* e);
 	bool is_expr_always_false(gen_event_filter_expression* e);
@@ -58,10 +94,14 @@ private:
 	// The following are for debug purposes
 	string check_to_string(sinsp_filter_check* chk);
 	string child_to_string(gen_event_filter_check* child, bool is_expression);
+	void print_filters();
 	void print_expr(gen_event_filter_expression* e1);
 
 	map<pair<gen_event_filter_expression*, gen_event_filter_expression*>, uint32_t> m_compared_checks;
 	map<pair<gen_event_filter_expression*, gen_event_filter_expression*>, uint32_t> m_dups;
+	//map<string, vector<uint8_t*>> m_collapsed_fields;
+	map<string, field_ops> m_collapsed_fields;
+	match_stats m_match_stats;
 	uint32_t m_ndups = 0;
 	uint32_t m_n_printed_expr;
 	bool is_flattened = false;
