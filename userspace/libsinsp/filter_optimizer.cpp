@@ -492,11 +492,6 @@ void sinsp_filter_optimizer::normalize_expr(gen_event_filter_expression* e)
 
 void sinsp_filter_optimizer::normalize()
 {
-	if(is_flattened)
-	{
-		return;
-	}
-
 	for(uint32_t j = 0; j < m_filters.size(); j++)
 	{
 		gen_event_filter_expression* fe = (gen_event_filter_expression*)m_filters[j].m_filter->m_filter;
@@ -506,8 +501,6 @@ void sinsp_filter_optimizer::normalize()
 		fe->m_boolop = BO_NONE;
 		normalize_expr((gen_event_filter_expression*)fe);
 	}
-
-	is_flattened = true;
 }
 
 void sinsp_filter_optimizer::dedup()
@@ -971,11 +964,11 @@ uint32_t chk_compare_helper::get_chk_field_importance(sinsp_filter_check* c)
 	}
 	else if(s == "fd.typechar")
 	{
-		return 2;
+		return 3;
 	}
 	else if(s == "evt.dir")
 	{
-		return 3;
+		return 2;
 	}
 	else if(s == "evt.is_open_read")
 	{
@@ -1132,12 +1125,12 @@ void sinsp_filter_optimizer::optimize()
 
 //	dedup();
 
-	//for(uint32_t j = 0; j < m_filters.size(); j++)
-	//{
-	//	gen_event_filter_expression* e = m_filters[j].m_filter->m_filter;
-	//	print_expr(e);
-	//	printf("\n\n");
-	//}
+	for(uint32_t j = 0; j < m_filters.size(); j++)
+	{
+		gen_event_filter_expression* e = m_filters[j].m_filter->m_filter;
+		print_expr(e);
+		printf("\n\n");
+	}
 
 	return;
 }

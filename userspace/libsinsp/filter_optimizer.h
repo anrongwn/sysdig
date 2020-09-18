@@ -115,5 +115,4 @@ private:
 	match_stats m_match_stats;
 	uint32_t m_ndups = 0;
 	uint32_t m_n_printed_expr;
-	bool is_flattened = false;
 };
