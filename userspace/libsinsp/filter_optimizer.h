@@ -53,6 +53,15 @@ public:
 	uint32_t m_other = 0;
 };
 
+class chk_compare_helper
+{
+public:
+	static uint32_t count_expr_checks(gen_event_filter_expression* e);
+	static uint32_t get_chk_field_importance(sinsp_filter_check* c);
+	static uint32_t get_chk_fields_cnt(sinsp_filter_check* c);
+	static uint32_t get_chk_fields_size(sinsp_filter_check* c);
+};
+
 class SINSP_PUBLIC sinsp_filter_optimizer
 {
 public:
@@ -85,11 +94,13 @@ private:
 	void merge_into_in_expr(gen_event_filter_expression* e);
 	void optimization_merge_into_in();
 
-
 	bool is_expr_disabled(gen_event_filter_expression* e);
 	bool is_expr_always_false(gen_event_filter_expression* e);
 	void optimization_remove_disabled();
 	void optimization_remove_always_false();
+
+	void sort_expr_checks_by_weight(gen_event_filter_expression* e);
+	void optimization_sort_checks_by_weight();
 
 	// The following are for debug purposes
 	string check_to_string(sinsp_filter_check* chk);

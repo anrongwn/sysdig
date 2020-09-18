@@ -781,13 +781,18 @@ void sinsp_filter_optimizer::merge_into_in_expr(gen_event_filter_expression* e)
 	}
 }
 
+//
+// This optimization looks for = and in checks for strings, and colasces them into a
+// single in statement.
+// Examples:
+// "fd.name=a or fd.name=b" -> "fd.name in (a, b)"
+// "fd.name=a or fd.name in (b, c) or fd.name=d or fd.name in (e, f)" -> "fd.name in (a, b, c, d, e, f)"
+//
 void sinsp_filter_optimizer::optimization_merge_into_in()
 {
 	for(uint32_t j = 0; j < m_filters.size(); j++)
 	{
 		merge_into_in_expr(m_filters[j].m_filter->m_filter);
-//print_expr(m_filters[j].m_filter->m_filter);
-//int a = 0;
 	}
 }
 
@@ -927,6 +932,191 @@ void sinsp_filter_optimizer::optimization_remove_always_false()
 	}
 }
 
+uint32_t chk_compare_helper::count_expr_checks(gen_event_filter_expression* e)
+{
+	uint32_t res = 0;
+	uint32_t size = (uint32_t)e->m_checks.size();
+
+	for(uint32_t j = 0; j < size; j++)
+	{
+		gen_event_filter_check* chk = e->m_checks[j];
+
+		//
+		// If the child is an expression, recursively sort it
+		//
+		gen_event_filter_expression* fe = dynamic_cast<gen_event_filter_expression*>(chk);
+		bool is_expression = (fe != NULL);
+
+		if(is_expression)
+		{
+			res += count_expr_checks(fe);
+		}
+		else
+		{
+			sinsp_filter_check* fc = dynamic_cast<sinsp_filter_check*>(chk);
+			res += fc->m_val_storages_members.size();
+		}
+	}
+
+	return res;
+}
+
+uint32_t chk_compare_helper::get_chk_field_importance(sinsp_filter_check* c)
+{
+	string s(c->m_field->m_name);
+
+	if(s == "evt.type")
+	{
+		return 1;
+	}
+	else if(s == "fd.typechar")
+	{
+		return 2;
+	}
+	else if(s == "evt.dir")
+	{
+		return 3;
+	}
+	else if(s == "evt.is_open_read")
+	{
+		return 4;
+	}
+	else if(s == "evt.is_open_write")
+	{
+		return 5;
+	}
+
+	return 10;
+}
+
+uint32_t chk_compare_helper::get_chk_fields_cnt(sinsp_filter_check* c)
+{
+	return c->m_val_storages_members.size();
+}
+
+uint32_t chk_compare_helper::get_chk_fields_size(sinsp_filter_check* c)
+{
+	uint32_t res = 0;
+
+	for(auto it : c->m_val_storages_members)
+	{
+		res += it.second;
+	}
+
+	return res;
+}
+
+bool comparecheck(gen_event_filter_check* c1, gen_event_filter_check* c2) 
+{
+	gen_event_filter_expression* fe1 = dynamic_cast<gen_event_filter_expression*>(c1);
+	bool is_expression1 = (fe1 != NULL);
+	gen_event_filter_expression* fe2 = dynamic_cast<gen_event_filter_expression*>(c2);
+	bool is_expression2 = (fe2 != NULL);
+
+	if(is_expression1 && is_expression2)
+	{
+		//
+		// If both entries are expressions, move left the one with less checks
+		//
+		uint32_t ce1 = chk_compare_helper::count_expr_checks(fe1);
+		uint32_t ce2 = chk_compare_helper::count_expr_checks(fe2);
+		return (ce1 < ce2);
+	}
+	if(!is_expression1 && !is_expression2)
+	{
+		//
+		// If both entries are single checks, find out if they have important fields.
+		// Important fields go to the left, according to their importance score.
+		//
+		sinsp_filter_check* fc1 = dynamic_cast<sinsp_filter_check*>(c1);
+		sinsp_filter_check* fc2 = dynamic_cast<sinsp_filter_check*>(c2);
+		ASSERT(fc1 != NULL && fc2 != NULL);
+		uint32_t i1 = chk_compare_helper::get_chk_field_importance(fc1);
+		uint32_t i2 = chk_compare_helper::get_chk_field_importance(fc2);
+		if(i1 != 10 || i2 != 10)
+		{
+			return (i1 < i2);
+		}
+		else
+		{
+			//
+			// If both entries are NOT important fields, move the ones with less values to
+			// check against to the left.
+			//
+			return (chk_compare_helper::get_chk_fields_cnt(fc1) < chk_compare_helper::get_chk_fields_cnt(fc2));
+//			return (chk_compare_helper::get_chk_fields_size(fc1) < chk_compare_helper::get_chk_fields_size(fc2));
+		}
+	}
+	else if(is_expression2)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+void sinsp_filter_optimizer::sort_expr_checks_by_weight(gen_event_filter_expression* e)
+{
+	int32_t bo = e->get_expr_boolop();
+	ASSERT(bo != -1);
+
+	//
+	// Sort the checks
+	//
+	sort(e->m_checks.begin(), e->m_checks.end(), comparecheck);
+
+	for(uint32_t j = 0; j < (uint32_t)e->m_checks.size(); j++)
+	{
+		gen_event_filter_check* chk = e->m_checks[j];
+
+		//
+		// Restore the boolops to the expression one, taking nots into account
+		//
+		bool isnot = op_is_not(chk->m_boolop);
+
+		if(j == 0)
+		{
+			chk->m_boolop = BO_NONE;
+		}
+		else
+		{
+			chk->m_boolop = (boolop)bo;
+		}
+	
+		if(isnot)
+		{
+			chk->m_boolop = op_set_not(chk->m_boolop);
+		}
+
+		//
+		// If the child is an expression, recursively sort it
+		//
+		gen_event_filter_expression* fe = dynamic_cast<gen_event_filter_expression*>(chk);
+		bool is_expression = (fe != NULL);
+
+		if(is_expression)
+		{
+			sort_expr_checks_by_weight(fe);
+		}
+	}
+}
+
+//
+// This optimization moves lighter filter checks at the right of each expression.
+// In other words, it reorders the check execution order so that filter checks that
+// are fast and/or likely to fail are evaulated before anything else, while the
+// slow/bulky ones run only if everything else succeeds.
+//
+void sinsp_filter_optimizer::optimization_sort_checks_by_weight()
+{
+	for(uint32_t j = 0; j < m_filters.size(); j++)
+	{
+		sort_expr_checks_by_weight(m_filters[j].m_filter->m_filter);
+	}
+}
+
 void sinsp_filter_optimizer::optimize()
 {
 	normalize();
@@ -936,16 +1126,18 @@ void sinsp_filter_optimizer::optimize()
 	optimization_remove_disabled();
 	optimization_remove_always_false();
 
+	optimization_sort_checks_by_weight();
+
 //	optimization_collapse_matches();
 
 //	dedup();
 
-	for(uint32_t j = 0; j < m_filters.size(); j++)
-	{
-		gen_event_filter_expression* e = m_filters[j].m_filter->m_filter;
-		print_expr(e);
-		printf("\n\n");
-	}
+	//for(uint32_t j = 0; j < m_filters.size(); j++)
+	//{
+	//	gen_event_filter_expression* e = m_filters[j].m_filter->m_filter;
+	//	print_expr(e);
+	//	printf("\n\n");
+	//}
 
 	return;
 }

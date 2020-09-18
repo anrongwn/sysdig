@@ -175,6 +175,7 @@ private:
 
 friend class sinsp_filter_check_list;
 friend class sinsp_filter_optimizer;
+friend class chk_compare_helper;
 };
 
 //

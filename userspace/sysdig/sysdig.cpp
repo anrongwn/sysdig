@@ -66,7 +66,7 @@ void init_flt_test(sinsp *inspector)
 	sinsp_filter* tflt;
 	sinsp_filter_optimizer_entry fi;
 
-#if 0
+#if 1
 	char line[64 * 1024];
 
 	FILE* rf = fopen("rules.txt", "r");
@@ -126,7 +126,8 @@ void init_flt_test(sinsp *inspector)
 	assert_flattened(inspector, "((not(not(not proc.pid=1 and not thread.tid=2)) and not(not(not proc.pid=3 and not thread.tid=4))))", "(not proc.pid = 1 and not thread.tid = 2 and not proc.pid = 3 and not thread.tid = 4)");
 	assert_flattened(inspector, "not(not(not(not(not proc.pid=1 and not thread.tid=2)) and not(not(not proc.pid=3 and not thread.tid=4))))", "(not proc.pid = 1 and not thread.tid = 2 and not proc.pid = 3 and not thread.tid = 4)");
 #endif
-	string fs = "((((evt.type in (rename,renameat,renameat2)) or (evt.type in (rmdir,unlink,unlinkat))) and evt.arg.newpath contains \"/.\") or  ((evt.type in (mkdir,mkdirat)) and evt.arg.path contains \"/.\") or  (((evt.type=open or evt.type=openat) and evt.is_open_write=true and fd.typechar='f' and fd.num>=0) and evt.arg.flags contains \"O_CREAT\" and fd.name contains \"/.\" and not fd.name pmatch (/root/.cassandra))) and ((((evt.num=0)))) and not ((((evt.num=0))))";
+//	string fs = "(proc.pid=4 and proc.name in(10, 11, 12)) or proc.pid=1 or (proc.pid=6 and proc.pid=7 and proc.pid=8) or (proc.pid=3) or proc.pid=2";
+	string fs = "(proc.pid=4 or proc.pid=5 or evt.dir=< or fd.typechar=f) and proc.pid = 1 and proc.pid=2";
 
 	sinsp_filter_compiler com1(inspector, fs);
 	tflt = com1.compile();
