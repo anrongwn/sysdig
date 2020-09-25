@@ -1490,6 +1490,7 @@ string sinsp_filter_optimizer::check_to_string(sinsp_filter_check* chk)
 		string vs = chk->rawval_to_string(it.first, chk->m_field->m_type, chk->m_field->m_print_format, it.second);
 		vals.push_back(vs);
 	}
+	sort(vals.begin(), vals.end());
 
 #if 1
 	uint32_t c = 0;
