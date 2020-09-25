@@ -1450,28 +1450,29 @@ void sinsp_filter_optimizer::optimize()
 		m_remaining_filters.push_back(info);
 	}
 
-	normalize();
-	optimization_merge_into_in();
-	normalize();
+	//normalize();
+	//optimization_merge_into_in();
+	//normalize();
 
-	optimization_remove_disabled();
-	optimization_remove_always_false();
+	//optimization_remove_disabled();
+	//optimization_remove_always_false();
 
-	optimization_sort_checks_by_weight();
-	optimization_index_by_type();
+//	optimization_sort_checks_by_weight();
+	//optimization_index_by_type();
 
 //	optimization_collapse_matches();
 
 //	dedup();
 
-	//for(uint32_t j = 0; j < m_filters.size(); j++)
-	//{
-	//	gen_event_filter_expression* e = m_filters[j].m_filter->m_filter;
-	//	printf("%s\n", m_filters[j].m_rule.c_str());
-	//	print_expr(e);
-	//	printf("\n\n");
-	//}
+	for(uint32_t j = 0; j < m_filters.size(); j++)
+	{
+		gen_event_filter_expression* e = m_filters[j].m_filter->m_filter;
+		printf("%s\n", m_filters[j].m_rule.c_str());
+		print_expr(e);
+		printf("\n\n");
+	}
 
+exit(0);
 	return;
 }
 
@@ -1482,30 +1483,37 @@ string sinsp_filter_optimizer::check_to_string(sinsp_filter_check* chk)
 	string ename = chk->m_info.m_name;
 
 	string vs;
-#if 1
-	uint32_t c = 0;
+
+	vector<string> vals;
 	for(auto it : chk->m_val_storages_members)
 	{
+		string vs = chk->rawval_to_string(it.first, chk->m_field->m_type, chk->m_field->m_print_format, it.second);
+		vals.push_back(vs);
+	}
+
+#if 1
+	uint32_t c = 0;
+	for(auto it : vals)
+	{
 		c++;
-		if(c >= 3)
+		if(c >= 30000)
 		{
 			vs += "..." + to_string(chk->m_val_storages_members.size());
 			vs += ",";
 			break;
 		}
-		vs += chk->rawval_to_string(it.first, chk->m_field->m_type, chk->m_field->m_print_format, it.second);
+		vs += it;
 		vs += ",";
 	}
 	vs = vs.substr(0, vs.length() - 1);
 #else
-	if(chk->m_val_storages_members.size() == 1)
+	if(vals.size() == 1)
 	{
-		vs = chk->rawval_to_string(chk->m_val_storages_members.begin()->first, chk->m_field->m_type, 
-			chk->m_field->m_print_format, chk->m_val_storages_members.begin()->second);
+		vs = vals[0];
 	}
 	else
 	{
-		vs = to_string(chk->m_val_storages_members.size());
+		vs = to_string(vals.size());
 	}
 #endif
 	return ts + " " + cmpop_to_string(chk->m_cmpop) + " " + vs;
