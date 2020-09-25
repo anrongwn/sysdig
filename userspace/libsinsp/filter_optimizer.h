@@ -25,6 +25,7 @@ public:
 	sinsp_filter* m_filter;
 	string m_rule; // optional
 	string m_filterstr; // optional
+	bool m_marked_for_removal = false;
 };
 
 class field_ops
@@ -56,10 +57,22 @@ public:
 class chk_compare_helper
 {
 public:
-	static uint32_t count_expr_checks(gen_event_filter_expression* e);
+	static uint32_t count_expr_checks(gen_event_filter_expression* e, bool important_only);
 	static uint32_t get_chk_field_importance(sinsp_filter_check* c);
 	static uint32_t get_chk_fields_cnt(sinsp_filter_check* c);
 	static uint32_t get_chk_fields_size(sinsp_filter_check* c);
+	static int32_t is_child_important(gen_event_filter_check* c);
+};
+
+class filter_evt_type_info
+{
+public:
+	string m_type;
+	event_direction m_direction;
+	char m_typechar;
+	bool m_has_direction = false;
+	bool m_has_typechar = false;
+	sinsp_filter* m_filter;
 };
 
 class SINSP_PUBLIC sinsp_filter_optimizer
@@ -71,6 +84,8 @@ public:
 
 	void normalize_expr(gen_event_filter_expression* e);
 	string expr_to_string(gen_event_filter_expression* e);
+
+	void run_filters(sinsp_evt *evt);
 
 	vector<sinsp_filter_optimizer_entry> m_filters;
 
@@ -102,6 +117,13 @@ private:
 	void sort_expr_checks_by_weight(gen_event_filter_expression* e);
 	void optimization_sort_checks_by_weight();
 
+	int32_t expr_find_evt_direction(gen_event_filter_expression* e);
+	bool child_extract_evt_types(gen_event_filter_check* chk, vector<filter_evt_type_info>* res);
+	void expr_extract_evt_types(gen_event_filter_expression* e, vector<filter_evt_type_info>* res);
+	int16_t string_to_evtnum(string evtstr);
+	bool is_evt_type_info_in_list(filter_evt_type_info* info, vector<filter_evt_type_info>* list);
+	void optimization_index_by_type();
+
 	// The following are for debug purposes
 	string check_to_string(sinsp_filter_check* chk);
 	string child_to_string(gen_event_filter_check* child, bool is_expression);
@@ -115,4 +137,6 @@ private:
 	match_stats m_match_stats;
 	uint32_t m_ndups = 0;
 	uint32_t m_n_printed_expr;
+	unordered_map<string, vector<filter_evt_type_info>> m_types_table;
+	vector<filter_evt_type_info> m_remaining_filters;
 };

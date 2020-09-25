@@ -330,6 +330,14 @@ public:
 	*/
 	void get_category(OUT sinsp_evt::category* cat);
 
+	/*!
+	  \brief Return the event information.
+	*/
+	const struct ppm_event_info* get_info()
+	{
+		return m_info;
+	}
+
 #ifdef HAS_FILTERING
 	/*!
 	  \brief Return true if the event has been rejected by the filtering system.

@@ -43,6 +43,7 @@ limitations under the License.
 #include <getopt.h>
 #endif
 
+#define OT_ENABLED
 
 #include "filter_optimizer.h"
 
@@ -126,8 +127,8 @@ void init_flt_test(sinsp *inspector)
 	assert_flattened(inspector, "((not(not(not proc.pid=1 and not thread.tid=2)) and not(not(not proc.pid=3 and not thread.tid=4))))", "(not proc.pid = 1 and not thread.tid = 2 and not proc.pid = 3 and not thread.tid = 4)");
 	assert_flattened(inspector, "not(not(not(not(not proc.pid=1 and not thread.tid=2)) and not(not(not proc.pid=3 and not thread.tid=4))))", "(not proc.pid = 1 and not thread.tid = 2 and not proc.pid = 3 and not thread.tid = 4)");
 #endif
-	string fs = "((evt.type=open or evt.type=openat) and evt.is_open_write=true and fd.typechar='f' and fd.num>=0)";
-//	string fs = "(proc.pid=4 or proc.pid=5 or evt.dir=< or fd.typechar=f) and proc.pid = 1 and proc.pid=2";
+//	string fs = "(((evt.type = \"container\" or  (evt.type=execve and evt.dir=< and proc.vpid=1)) and  container.image.repository != incomplete) ) and ((container.id != host)) and container.privileged=true and not ((((((container.image.repository startswith openshift3/ or  container.image.repository startswith registry.redhat.io/openshift3/ or  container.image.repository startswith registry.access.redhat.com/openshift3/) ) and   (container.image.repository endswith /logging-deployment or    container.image.repository endswith /logging-elasticsearch or    container.image.repository endswith /logging-kibana or    container.image.repository endswith /logging-fluentd or    container.image.repository endswith /logging-auth-proxy or    container.image.repository endswith /metrics-deployer or    container.image.repository endswith /metrics-hawkular-metrics or    container.image.repository endswith /metrics-cassandra or    container.image.repository endswith /metrics-heapster or    container.image.repository endswith /ose-haproxy-router or    container.image.repository endswith /ose-deployer or    container.image.repository endswith /ose-sti-builder or    container.image.repository endswith /ose-docker-builder or    container.image.repository endswith /ose-pod or    container.image.repository endswith /ose-node or    container.image.repository endswith /ose-docker-registry or    container.image.repository endswith /prometheus-node-exporter or    container.image.repository endswith /image-inspector)) ) or ((((evt.num=0)))) or container.image.repository in () or container.image.repository in (docker.io/sysdig/falco,docker.io/sysdig/sysdig,gcr.io/google_containers/kube-proxy,docker.io/calico/node,quay.io/calico/node,docker.io/rook/toolbox,docker.io/cloudnativelabs/kube-router,docker.io/mesosphere/mesos-slave,docker.io/docker/ucp-agent,docker.io/sematext/sematext-agent-docker,docker.io/sematext/agent,docker.io/sematext/logagent,registry.access.redhat.com/sematext/sematext-agent-docker,registry.access.redhat.com/sematext/agent,registry.access.redhat.com/sematext/logagent,k8s.gcr.io/kube-proxy,docker.io/falcosecurity/falco,sysdig/falco,sysdig/sysdig,falcosecurity/falco) or container.image.repository startswith istio/proxy_ or container.image.repository startswith quay.io/sysdig/)) and not ((((evt.num=0))))";
+	string fs = "evt.type = container or (evt.type = execve and evt.dir = < and proc.vpid = 1)";
 
 	sinsp_filter_compiler com1(inspector, fs);
 	tflt = com1.compile();
@@ -159,17 +160,7 @@ void init_flt_test(sinsp *inspector)
 
 inline void run_flt_test(sinsp_evt *evt)
 {
-	for(auto& it : g_optimizer.m_filters)
-	{
-		bool res = it.m_filter->run(evt);
-		if(res == true)
-		{
-			printf("%u\n", (uint32_t)evt->get_num());
-			int a = 0;
-		}
-//		it.m_filter->print();
-		int a = 0;
-	}
+	g_optimizer.run_filters(evt);
 }
 
 
@@ -762,8 +753,15 @@ captureinfo do_inspect(sinsp* inspector,
 			throw sinsp_exception(inspector->getlasterr().c_str());
 		}
 
+#ifdef OT_ENABLED
+if(!ev->simple_consumer_consider())
+{
+	continue;
+}
+
 run_flt_test(ev);
 continue;
+#endif
 
 		if (duration_start == 0)
 		{
@@ -991,7 +989,9 @@ sysdig_init_res sysdig_init(int argc, char **argv)
 		inspector = new sinsp();
 		inspector->set_hostname_and_port_resolution_mode(false);
 
+#ifdef OT_ENABLED
 		init_flt_test(inspector);
+#endif
 
 #ifdef HAS_CHISELS
 		add_chisel_dirs(inspector);

@@ -22,7 +22,7 @@ limitations under the License.
 // Essentially, after dealing with that stuff multiple times in the past, and fighting for a day
 // to configure everything with crappy documentation and code that doesn't compile,
 // I decided that I agree with this http://mortoray.com/2012/07/20/why-i-dont-use-a-parser-generator/
-// and that I'm going with a manually written parser. The grammar is simple enough that it's not
+// and that I'm going with a manually written parser. The grammar is simple enough that fit's not
 // going to take more time. On the other hand I will avoid a crappy dependency that breaks my
 // code at every new release, and I will have a cleaner and easier to understand code base.
 //
@@ -98,14 +98,14 @@ boolop sinsp_filter_optimizer::get_check_boolop(gen_event_filter_expression* e, 
 	if(pos == 0)
 	{
 		//
-		// The first check borrows the boolop from the follower (if it has one)
+		// The first check borrows the boolop from the follower (if fit has one)
 		//
 		if(chk->m_boolop == BO_NONE)
 		{
 			if(tot_checks > 1)
 			{
 				res = e->m_checks[1]->m_boolop;
-				// Clear the last bit of the boolop to make sure it's positive
+				// Clear the last bit of the boolop to make sure fit's positive
 				res = (boolop)(((uint32_t)res) & ~1);
 			}
 			else
@@ -118,7 +118,7 @@ boolop sinsp_filter_optimizer::get_check_boolop(gen_event_filter_expression* e, 
 			if(tot_checks > 1)
 			{
 				res = e->m_checks[1]->m_boolop;
-				// Set the last bit of the boolop to make sure it's negative
+				// Set the last bit of the boolop to make sure fit's negative
 				res = (boolop)(((uint32_t)res) | 1);
 			}
 			else
@@ -168,9 +168,9 @@ uint32_t sinsp_filter_optimizer::compare_check(sinsp_filter_check* chk1, sinsp_f
 //	//m_val_storage_len
 //
 //	string vs;
-//	for(auto it : chk->m_val_storages_members)
+//	for(auto fit : chk->m_val_storages_members)
 //	{
-//		vs += (to_string(it.second) + ":");
+//		vs += (to_string(fit.second) + ":");
 //	}
 //	vs = vs.substr(0, vs.length() - 1);
 //
@@ -443,7 +443,7 @@ void sinsp_filter_optimizer::normalize_expr(gen_event_filter_expression* e)
 				//
 				if(!op_is_not(ce->m_boolop))
 				{
-					if((size == 1 && ce->m_boolop == BO_NONE) || // parent is alone and has no bool op. This means it's a single check with 1 child.
+					if((size == 1 && ce->m_boolop == BO_NONE) || // parent is alone and has no bool op. This means fit's a single check with 1 child.
 						(size > 1 && pbo == gpbo) || // parent is not alone but the boolop of its group matches the one of the child
 						pbo == (ce->m_boolop & (uint32_t)~1)) // parent has same boolop as childs, modulo a not
 					{
@@ -497,7 +497,7 @@ void sinsp_filter_optimizer::normalize()
 		gen_event_filter_expression* fe = (gen_event_filter_expression*)m_filters[j].m_filter->m_filter;
 
 		// top tier checks come with boolop not set.
-		// Set it to NONE.
+		// Set fit to NONE.
 		fe->m_boolop = BO_NONE;
 		normalize_expr((gen_event_filter_expression*)fe);
 	}
@@ -582,7 +582,7 @@ void sinsp_filter_optimizer::collapse_matches_check(sinsp_filter_check* chk)
 	for(auto it : chk->m_val_storages_members)
 	{
 		vs = chk->rawval_to_string(it.first, chk->m_field->m_type, chk->m_field->m_print_format, it.second);
-		//fvals.push_back(it.first);
+		//fvals.push_back(fit.first);
 		fvec->push_back(vs);
 		(*mstats)++;
 printf("%s,%s,%s\n", ts.c_str(), vs.c_str(), cmpop_to_string(op));
@@ -666,7 +666,7 @@ void sinsp_filter_optimizer::get_in_able_fields(gen_event_filter_expression* e, 
 	}
 
 	//
-	// Go through each unique field and determine if it's in-able
+	// Go through each unique field and determine if fit's in-able
 	//
 	for(auto& it : all_fields)
 	{
@@ -925,35 +925,6 @@ void sinsp_filter_optimizer::optimization_remove_always_false()
 	}
 }
 
-uint32_t chk_compare_helper::count_expr_checks(gen_event_filter_expression* e)
-{
-	uint32_t res = 0;
-	uint32_t size = (uint32_t)e->m_checks.size();
-
-	for(uint32_t j = 0; j < size; j++)
-	{
-		gen_event_filter_check* chk = e->m_checks[j];
-
-		//
-		// If the child is an expression, recursively sort it
-		//
-		gen_event_filter_expression* fe = dynamic_cast<gen_event_filter_expression*>(chk);
-		bool is_expression = (fe != NULL);
-
-		if(is_expression)
-		{
-			res += count_expr_checks(fe);
-		}
-		else
-		{
-			sinsp_filter_check* fc = dynamic_cast<sinsp_filter_check*>(chk);
-			res += fc->m_val_storages_members.size();
-		}
-	}
-
-	return res;
-}
-
 uint32_t chk_compare_helper::get_chk_field_importance(sinsp_filter_check* c)
 {
 	string s(c->m_field->m_name);
@@ -982,6 +953,45 @@ uint32_t chk_compare_helper::get_chk_field_importance(sinsp_filter_check* c)
 	return 10;
 }
 
+uint32_t chk_compare_helper::count_expr_checks(gen_event_filter_expression* e, bool important_only)
+{
+	uint32_t res = 0;
+	uint32_t size = (uint32_t)e->m_checks.size();
+
+	for(uint32_t j = 0; j < size; j++)
+	{
+		gen_event_filter_check* chk = e->m_checks[j];
+
+		//
+		// If the child is an expression, recursively sort fit
+		//
+		gen_event_filter_expression* fe = dynamic_cast<gen_event_filter_expression*>(chk);
+		bool is_expression = (fe != NULL);
+
+		if(is_expression)
+		{
+			res += count_expr_checks(fe, important_only);
+		}
+		else
+		{
+			sinsp_filter_check* fc = dynamic_cast<sinsp_filter_check*>(chk);
+			if(important_only)
+			{
+				if(get_chk_field_importance(fc) != 10)
+				{
+					res++;
+				}
+			}
+			else
+			{
+				res += fc->m_val_storages_members.size();
+			}
+		}
+	}
+
+	return res;
+}
+
 uint32_t chk_compare_helper::get_chk_fields_cnt(sinsp_filter_check* c)
 {
 	return c->m_val_storages_members.size();
@@ -999,6 +1009,35 @@ uint32_t chk_compare_helper::get_chk_fields_size(sinsp_filter_check* c)
 	return res;
 }
 
+int32_t chk_compare_helper::is_child_important(gen_event_filter_check* c)
+{
+	gen_event_filter_expression* fe = dynamic_cast<gen_event_filter_expression*>(c);
+	if(fe != NULL)
+	{
+		if(chk_compare_helper::count_expr_checks(fe, true) != 0)
+		{
+			return 1;
+		}
+		else
+		{
+			return 0;
+		}
+	}
+	else
+	{
+		sinsp_filter_check* fc = dynamic_cast<sinsp_filter_check*>(c);
+		ASSERT(fc != NULL);
+		if(chk_compare_helper::get_chk_field_importance(fc) == 10)
+		{
+			return 0;
+		}
+		else
+		{
+			return 1;
+		}
+	}
+}
+
 bool comparecheck(gen_event_filter_check* c1, gen_event_filter_check* c2) 
 {
 	gen_event_filter_expression* fe1 = dynamic_cast<gen_event_filter_expression*>(c1);
@@ -1011,9 +1050,22 @@ bool comparecheck(gen_event_filter_check* c1, gen_event_filter_check* c2)
 		//
 		// If both entries are expressions, move left the one with less checks
 		//
-		uint32_t ce1 = chk_compare_helper::count_expr_checks(fe1);
-		uint32_t ce2 = chk_compare_helper::count_expr_checks(fe2);
-		return (ce1 < ce2);
+		uint32_t ce1 = chk_compare_helper::count_expr_checks(fe1, true);
+		uint32_t ce2 = chk_compare_helper::count_expr_checks(fe2, true);
+		if(ce1 != 0 || ce2 != 0)
+		{
+			return (ce1 > ce2);
+		}
+		else
+		{
+			//
+			// If none of the expressions have important checks, move left the one 
+			// with less checks
+			//
+			uint32_t ce1 = chk_compare_helper::count_expr_checks(fe1, false);
+			uint32_t ce2 = chk_compare_helper::count_expr_checks(fe2, false);
+			return (ce1 < ce2);
+		}
 	}
 	if(!is_expression1 && !is_expression2)
 	{
@@ -1040,13 +1092,26 @@ bool comparecheck(gen_event_filter_check* c1, gen_event_filter_check* c2)
 //			return (chk_compare_helper::get_chk_fields_size(fc1) < chk_compare_helper::get_chk_fields_size(fc2));
 		}
 	}
-	else if(is_expression2)
-	{
-		return true;
-	}
 	else
 	{
-		return false;
+		int32_t ci1 = chk_compare_helper::is_child_important(c1);
+		int32_t ci2 = chk_compare_helper::is_child_important(c2);
+
+		if(ci1 != 0 || ci2 != 0)
+		{
+			return (ci2 < ci1);
+		}
+		else
+		{
+			if(is_expression2)
+			{
+				return true;
+			}
+			else
+			{
+				return false;
+			}
+		}
 	}
 }
 
@@ -1084,7 +1149,7 @@ void sinsp_filter_optimizer::sort_expr_checks_by_weight(gen_event_filter_express
 		}
 
 		//
-		// If the child is an expression, recursively sort it
+		// If the child is an expression, recursively sort fit
 		//
 		gen_event_filter_expression* fe = dynamic_cast<gen_event_filter_expression*>(chk);
 		bool is_expression = (fe != NULL);
@@ -1098,7 +1163,7 @@ void sinsp_filter_optimizer::sort_expr_checks_by_weight(gen_event_filter_express
 
 //
 // This optimization moves lighter filter checks at the right of each expression.
-// In other words, it reorders the check execution order so that filter checks that
+// In other words, fit reorders the check execution order so that filter checks that
 // are fast and/or likely to fail are evaulated before anything else, while the
 // slow/bulky ones run only if everything else succeeds.
 //
@@ -1110,8 +1175,281 @@ void sinsp_filter_optimizer::optimization_sort_checks_by_weight()
 	}
 }
 
+bool sinsp_filter_optimizer::child_extract_evt_types(gen_event_filter_check* chk, vector<filter_evt_type_info>* res)
+{
+	gen_event_filter_expression* fe = dynamic_cast<gen_event_filter_expression*>(chk);
+	if(fe == NULL)
+	{
+		res->clear();
+		return false;
+	}
+
+	vector<filter_evt_type_info> cres;
+	expr_extract_evt_types(fe, &cres);
+	if(cres.size() == 0)
+	{
+		res->clear();
+		return false;
+	}
+
+	res->insert(res->end(), cres.begin(), cres.end());
+
+	return true;
+}
+
+int32_t sinsp_filter_optimizer::expr_find_evt_direction(gen_event_filter_expression* e)
+{
+	for(uint32_t j = 0; j < (uint32_t)e->m_checks.size(); j++)
+	{
+		gen_event_filter_check* chk = e->m_checks[j];
+		sinsp_filter_check* fc = dynamic_cast<sinsp_filter_check*>(chk);
+		if(fc != NULL)
+		{
+			string s(fc->m_field->m_name);
+
+			if(s == "evt.dir" && fc->m_cmpop == CO_EQ)
+			{
+				string ds = fc->rawval_to_string(fc->m_val_storages_members.begin()->first, fc->m_field->m_type, 
+					fc->m_field->m_print_format, fc->m_val_storages_members.begin()->second);
+				if(ds == ">")
+				{
+					return SCAP_ED_IN;
+				}
+				else
+				{
+					return SCAP_ED_OUT;
+				}
+			}
+		}
+	}
+
+	return -1;
+}
+
+void sinsp_filter_optimizer::expr_extract_evt_types(gen_event_filter_expression* e, vector<filter_evt_type_info>* res)
+{
+	int32_t bo = e->get_expr_boolop();
+
+	if(bo == BO_AND)
+	{
+		for(uint32_t j = 0; j < (uint32_t)e->m_checks.size(); j++)
+		{
+			gen_event_filter_check* chk = e->m_checks[j];
+			sinsp_filter_check* fc = dynamic_cast<sinsp_filter_check*>(chk);
+			if(fc != NULL)
+			{
+				string s(fc->m_field->m_name);
+
+				if(s == "evt.type")
+				{
+					if(fc->m_cmpop == CO_EQ || fc->m_cmpop == CO_IN)
+					{
+						for(auto it : fc->m_val_storages_members)
+						{
+							filter_evt_type_info sval;
+							sval.m_type = fc->rawval_to_string(it.first, fc->m_field->m_type, fc->m_field->m_print_format, it.second);
+
+							int32_t dir = expr_find_evt_direction(e);
+							if(dir != -1)
+							{
+								sval.m_has_direction = true;
+								sval.m_direction = (event_direction)dir;
+							}
+
+							res->push_back(sval);
+						}
+					}
+				}
+			}
+			else
+			{
+				vector<filter_evt_type_info> cres;
+				if(child_extract_evt_types(e->m_checks[j], &cres) == true)
+				{
+					res->insert(res->end(), cres.begin(), cres.end());
+				}
+			}
+		}
+	}
+	else if(bo == BO_OR)
+	{
+		vector<filter_evt_type_info> cres;
+
+		for(uint32_t j = 0; j < (uint32_t)e->m_checks.size(); j++)
+		{
+			gen_event_filter_check* chk = e->m_checks[j];
+			sinsp_filter_check* fc = dynamic_cast<sinsp_filter_check*>(chk);
+			if(fc != NULL)
+			{
+				string s(fc->m_field->m_name);
+
+				if(s == "evt.type")
+				{
+					if(fc->m_cmpop == CO_EQ || fc->m_cmpop == CO_IN)
+					{
+						for(auto it : fc->m_val_storages_members)
+						{
+							filter_evt_type_info sval;
+							sval.m_type = fc->rawval_to_string(it.first, fc->m_field->m_type, fc->m_field->m_print_format, it.second);
+
+							cres.push_back(sval);
+						}
+
+						continue;
+					}
+				}
+
+				return;
+			}
+			else
+			{
+				vector<filter_evt_type_info> ccres;
+				if(child_extract_evt_types(e->m_checks[j], &ccres) == true)
+				{
+					cres.insert(cres.end(), ccres.begin(), ccres.end());
+				}
+				else
+				{
+					return;
+				}
+			}
+		}
+
+		res->insert(res->end(), cres.begin(), cres.end());
+	}
+}
+
+//
+// Converts a string containing an event name into the corresponding event type id.
+// returns -1 if the event with the given name is not found.
+//
+int16_t sinsp_filter_optimizer::string_to_evtnum(string evtstr)
+{
+	for(uint32_t j = 0; j < PPM_EVENT_MAX; j++)
+	{
+		string evname = g_infotables.m_event_info[j].name;
+		if(evname == evtstr)
+		{
+			return j;
+		}
+	}
+
+	return -1;
+}
+
+bool sinsp_filter_optimizer::is_evt_type_info_in_list(filter_evt_type_info* info, vector<filter_evt_type_info>* list)
+{
+	for(auto& it : *list)
+	{
+		if(it.m_type == info->m_type &&
+			it.m_has_direction == info->m_has_direction &&
+			it.m_has_typechar == info->m_has_typechar &&
+			it.m_direction == info->m_direction &&
+			it.m_typechar == info->m_typechar &&
+			it.m_filter == info->m_filter)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+//
+// This optimization indexes the filters in the list by type, creating a table that
+// can be used to quickly determine which filters should be called for a specific event
+//
+void sinsp_filter_optimizer::optimization_index_by_type()
+{
+	vector<pair<sinsp_filter_optimizer_entry*, vector<filter_evt_type_info>>> flt_types;
+
+	//
+	// Create the list of event typer per filter
+	//
+	for(uint32_t j = 0; j < m_filters.size(); j++)
+	{
+		vector<filter_evt_type_info> types;
+		expr_extract_evt_types(m_filters[j].m_filter->m_filter, &types);
+		if(types.size() != 0)
+		{
+			flt_types.push_back(pair<sinsp_filter_optimizer_entry*, vector<filter_evt_type_info>>(&m_filters[j], types));
+		}
+	}
+
+	//
+	// First pass: skip filters with types we don't understand 
+	// (i.e. events that are not in the event table, which should be very rare)
+	//
+	for(uint32_t j = 0; j < flt_types.size(); j++)
+	{
+		auto& it = flt_types[j];
+		bool unsupported = false;
+
+		for(auto nit : it.second)
+		{
+			int16_t eid = string_to_evtnum(nit.m_type);
+			if(eid == -1)
+			{
+				unsupported = true;
+				break;
+			}
+		}
+
+		if(unsupported)
+		{
+			flt_types.erase(flt_types.begin() + j);
+			j--;
+		}
+	}
+
+	//
+	// Second pass: populate the types map
+	//
+	for(uint32_t j = 0; j < flt_types.size(); j++)
+	{
+		auto& it = flt_types[j];
+		bool unsupported = false;
+
+		for(auto nit : it.second)
+		{
+			auto& entry = m_types_table[nit.m_type];
+
+			nit.m_filter = it.first->m_filter;
+			if(!is_evt_type_info_in_list(&nit, &entry))
+			{
+				entry.push_back(nit);
+				it.first->m_marked_for_removal = true;
+			}
+			else
+			{
+				ASSERT(false);
+			}
+		}
+	}
+
+	m_remaining_filters.clear();
+	for(uint32_t j = 0; j < m_filters.size(); j++)
+	{
+		if(!m_filters[j].m_marked_for_removal)
+		{
+			filter_evt_type_info info;
+			info.m_filter = m_filters[j].m_filter;
+			m_remaining_filters.push_back(info);
+		}
+	}
+
+	int a = 0;
+}
+
 void sinsp_filter_optimizer::optimize()
 {
+	for(uint32_t j = 0; j < m_filters.size(); j++)
+	{
+		filter_evt_type_info info;
+		info.m_filter = m_filters[j].m_filter;
+		m_remaining_filters.push_back(info);
+	}
+
 	normalize();
 	optimization_merge_into_in();
 	normalize();
@@ -1120,17 +1458,19 @@ void sinsp_filter_optimizer::optimize()
 	optimization_remove_always_false();
 
 	optimization_sort_checks_by_weight();
+	optimization_index_by_type();
 
 //	optimization_collapse_matches();
 
 //	dedup();
 
-	for(uint32_t j = 0; j < m_filters.size(); j++)
-	{
-		gen_event_filter_expression* e = m_filters[j].m_filter->m_filter;
-		print_expr(e);
-		printf("\n\n");
-	}
+	//for(uint32_t j = 0; j < m_filters.size(); j++)
+	//{
+	//	gen_event_filter_expression* e = m_filters[j].m_filter->m_filter;
+	//	printf("%s\n", m_filters[j].m_rule.c_str());
+	//	print_expr(e);
+	//	printf("\n\n");
+	//}
 
 	return;
 }
@@ -1142,13 +1482,32 @@ string sinsp_filter_optimizer::check_to_string(sinsp_filter_check* chk)
 	string ename = chk->m_info.m_name;
 
 	string vs;
+#if 1
+	uint32_t c = 0;
 	for(auto it : chk->m_val_storages_members)
 	{
+		c++;
+		if(c >= 3)
+		{
+			vs += "..." + to_string(chk->m_val_storages_members.size());
+			vs += ",";
+			break;
+		}
 		vs += chk->rawval_to_string(it.first, chk->m_field->m_type, chk->m_field->m_print_format, it.second);
 		vs += ",";
 	}
 	vs = vs.substr(0, vs.length() - 1);
-
+#else
+	if(chk->m_val_storages_members.size() == 1)
+	{
+		vs = chk->rawval_to_string(chk->m_val_storages_members.begin()->first, chk->m_field->m_type, 
+			chk->m_field->m_print_format, chk->m_val_storages_members.begin()->second);
+	}
+	else
+	{
+		vs = to_string(chk->m_val_storages_members.size());
+	}
+#endif
 	return ts + " " + cmpop_to_string(chk->m_cmpop) + " " + vs;
 }
 
@@ -1242,4 +1601,51 @@ void sinsp_filter_optimizer::print_expr(gen_event_filter_expression* e1)
 {
 	string es = expr_to_string(e1);
 	printf("%s", es.c_str());
+}
+
+void sinsp_filter_optimizer::run_filters(sinsp_evt *evt)
+{
+	string ename = evt->get_name();
+	event_direction dir = evt->get_direction();
+	uint32_t nparams = evt->get_info()->nparams;
+	if(nparams == 0)
+	{
+		return;
+	}
+
+	auto it = m_types_table.find(ename);
+	if(it != m_types_table.end())
+	{
+		for(auto& fit : it->second)
+		{
+			if(fit.m_has_direction && fit.m_direction != dir)
+			{
+				continue;
+			}
+
+			bool res = fit.m_filter->run(evt);
+			if(res == true)
+			{
+				printf("%u\n", (uint32_t)evt->get_num());
+				int a = 0;
+			}
+		}
+	}
+
+	for(auto& fit : m_remaining_filters)
+	{
+		if(fit.m_has_direction && fit.m_direction != dir)
+		{
+			continue;
+		}
+
+		bool res = fit.m_filter->run(evt);
+		if(res == true)
+		{
+			printf("%u\n", (uint32_t)evt->get_num());
+			int a = 0;
+		}
+//		fit.m_filter->print();
+		int a = 0;
+	}
 }
